@@ -41,22 +41,25 @@ with col2:
 
 with col3:
     repeated_single_instance = st.selectbox("Repeated or Single Instance", options=[0, 1], format_func=lambda x: "Single" if x == 0 else "Repeated")
-    breakdown_date = st.date_input("Breakdown Date", value=pd.to_datetime("2025-07-08")) # Default to a recent date
+    # Set default date to today for convenience
+    breakdown_date = st.date_input("Breakdown Date", value=pd.to_datetime('today'))
     breakdown_time_str = st.time_input("Breakdown Time", value=pd.to_datetime("08:00:00").time())
     put_on_road_time_str = st.time_input("Put-on Road Time", value=pd.to_datetime("11:30:00").time())
 
-# Additional columns that are used by the model but might not be direct user inputs
-# These need to be derived or defaulted based on your original feature engineering
-# Refer to your `numerical_cols` and `categorical_cols` from the notebook.
 
-# Example for derived features (adjust as per your actual feature engineering logic)
+# --- Derived Features (Changed/Fixed here) ---
 # Ensure these derivations match *exactly* how they were done during training.
 year = breakdown_date.year
 month = breakdown_date.month
 day = breakdown_date.day
 dayofweek = breakdown_date.weekday() # Monday=0, Sunday=6
-weekofyear = breakdown_date.isocalendar().week
-quarter = breakdown_date.quarter
+
+# Convert breakdown_date to a pandas Timestamp for easy extraction of weekofyear and quarter
+# This fixes the AttributeError: 'Series' object has no attribute 'quarter'
+temp_timestamp = pd.Timestamp(breakdown_date)
+weekofyear = temp_timestamp.isocalendar().week
+quarter = temp_timestamp.quarter
+
 kms_difference = act_kms - sch_kms
 
 # Convert time objects to full datetime for Time_to_Repair_Hours calculation
@@ -78,9 +81,9 @@ if time_to_repair_hours < 0: # Should not happen if timedelta logic is correct
 # For initial deployment, using a median/mode value from your training data for these is a common workaround.
 # You'll need to know the median values you used for imputation during training.
 # Let's assume you found median Breakdowns_Per_Bus_Cumulative and Days_Since_Last_Breakdown during training.
-# Replace with actual medians from your `df` before `train_test_split` if possible.
-breakdowns_per_bus_cumulative = 1 # Default, or median from training data
-days_since_last_breakdown = 7 # Default, or median from training data
+# Removed these as per the 'FINAL-FINAL REVISION' in your notebook
+# breakdowns_per_bus_cumulative = 1 # Default, or median from training data
+# days_since_last_breakdown = 7 # Default, or median from training data
 
 # Breakdown Severity (Sch.KMs could be 0, handle division by zero)
 breakdown_severity = miss_kms_bd_only / sch_kms if sch_kms > 0 else 0
@@ -141,8 +144,6 @@ input_data = pd.DataFrame({
     'Quarter': [quarter],
     'KMs_Difference': [kms_difference],
     'Time_to_Repair_Hours': [time_to_repair_hours],
-    # 'Breakdowns_Per_Bus_Cumulative': [breakdowns_per_bus_cumulative], # Removed in FINAL-FINAL, careful!
-    # 'Days_Since_Last_Breakdown': [days_since_last_breakdown], # Removed in FINAL-FINAL, careful!
     'Breakdown_Severity': [breakdown_severity],
     'Depot Name': [depot_name],
     'Bus No.': [bus_no],
@@ -153,10 +154,6 @@ input_data = pd.DataFrame({
     'DayName': [day_name],
     'Breakdown_Time_Category': [breakdown_time_category]
 })
-
-# Display the input data (optional, for debugging)
-# st.write("Input data prepared for prediction:")
-# st.dataframe(input_data)
 
 # --- 5. Make Prediction ---
 if st.button("Predict Breakdown Reason"):
